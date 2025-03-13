@@ -1,3 +1,10 @@
+import os
+
+# Set environment variables to avoid headless server errors.
+if "XDG_RUNTIME_DIR" not in os.environ or not os.environ["XDG_RUNTIME_DIR"]:
+    os.environ["XDG_RUNTIME_DIR"] = "/tmp"
+os.environ["SDL_AUDIODRIVER"] = "dummy"
+
 import threading
 import random
 import base64
