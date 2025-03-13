@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Snake Game Online</title>
+  <!-- Load Socket.IO client library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.min.js"></script>
+  <!-- Load MediaPipe Hands and Camera Utils -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <style>
+    body { text-align: center; font-family: Arial, sans-serif; }
+    #game { border: 2px solid #444; }
+  </style>
+</head>
+<body>
+  <h1>Snake Game Online</h1>
+  <!-- Image element to display game frames streamed from the server -->
+  <img id="game" src="" width="600" height="400" alt="Game Frame">
+  
+  <script>
+    // Connect to the Socket.IO server.
+    const socket = io();
+
+    // Update the displayed game frame when receiving new frames.
+    socket.on('game_frame', function(data) {
+      document.getElementById('game').src = 'data:image/jpeg;base64,' + data.image;
+    });
+
+    // Set up video element for webcam capture (hidden from view).
+    const videoElement = document.createElement('video');
+    videoElement.style.display = 'none';
+    document.body.appendChild(videoElement);
+
+    // Initialize MediaPipe Hands.
+    const hands = new Hands({locateFile: (file) => {
+      return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+    }});
+    hands.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.7,
+      minTrackingConfidence: 0.5
+    });
+    hands.onResults(onResults);
+
+    // Callback to process results from MediaPipe Hands.
+    function onResults(results) {
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        const landmarks = results.multiHandLandmarks[0];
+        // Thumb tip is landmark index 4.
+        const thumb = landmarks[4];
+        // Compute coordinates relative to video dimensions.
+        const cx = thumb.x * videoElement.videoWidth;
+        const cy = thumb.y * videoElement.videoHeight;
+        const centerX = videoElement.videoWidth / 2;
+        const centerY = videoElement.videoHeight / 2;
+        const threshold = 40;
+        let newDirection = "";
+        if (cx < centerX - threshold) {
+          newDirection = "LEFT";
+        } else if (cx > centerX + threshold) {
+          newDirection = "RIGHT";
+        }
+        if (cy < centerY - threshold) {
+          newDirection = "UP";
+        } else if (cy > centerY + threshold) {
+          newDirection = "DOWN";
+        }
+        if (newDirection !== "") {
+          // Send the direction command to the server.
+          socket.emit('direction', {direction: newDirection});
+        }
+      }
+    }
+
+    // Set up the camera using MediaPipe's Camera Utils.
+    const camera = new Camera(videoElement, {
+      onFrame: async () => {
+        await hands.send({image: videoElement});
+      },
+      width: 640,
+      height: 480
+    });
+    camera.start();
+  </script>
+</body>
+</html>
